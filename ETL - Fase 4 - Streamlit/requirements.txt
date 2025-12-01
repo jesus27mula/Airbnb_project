@@ -56,5 +56,5 @@ xyzservices==2024.9.0
 joblib==1.4.2
 lightgbm==4.5.0
 scikit-learn==1.5.1
-tensorflow ==2.17.0
+tensorflow==2.17.0
 mysql-connector-python==8.0.33
