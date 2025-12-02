@@ -1,3 +1,29 @@
 venv/
 __pycache__/
 *.pyc
+.env
+*.env
+.env.local
+"*.backup"
+
+# Entornos virtuales de Python
+venv/
+.venv/
+env/
+ENV/
+
+# Variables de entorno
+.env
+.env.local
+.env.*
+!env.template
+secrets.toml
+*.env
+.envrc
+
+# Config files with passwords
+config.json
+credentials.json
+
+# Streamlit secrets
+.streamlit/secrets.toml

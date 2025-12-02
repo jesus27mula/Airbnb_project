@@ -1,5 +1,7 @@
 import streamlit as st
 
+from utils import load_analysis_image, load_image
+
 st.set_page_config(page_title='Airbnb Data Dashboard', page_icon='🏠', layout='wide')
 
 def show():
@@ -49,6 +51,26 @@ def show():
         ''')
 
     with col2:
-        st.image('images/airbnb_1stpage.png', use_column_width=True)
-        st.image('images/airbnb_1stpage_2.png', use_column_width=True)
-        st.image('images/language tools Final project.png', use_column_width=True)
+        img1 = load_analysis_image('airbnb_1stpage.png')
+        if img1:
+            st.image(img1, width=None)
+        else:
+            st.warning("Image 'airbnb_1stpage.png' not found in images/analysis/")
+        
+        img2 = load_analysis_image('airbnb_1stpage_2.png')
+        if img2:
+            st.image(img2, width=None)
+        else:
+            st.warning("Image 'airbnb_1stpage_2.png' not found in images/analysis/")
+        
+        img3 = load_analysis_image('language tools Final project.png')
+        if img3:
+            st.image(img3, width=None)
+        else:
+            # Intentar nombre alternativo (sin espacios o con guiones)
+            alt_name = 'language_tools_Final_project.png'
+            img3_alt = load_analysis_image(alt_name)
+            if img3_alt:
+                st.image(img3_alt, width=None)
+            else:
+                st.warning(f"Image 'language tools Final project.png' not found in images/analysis/")

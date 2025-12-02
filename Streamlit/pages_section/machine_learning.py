@@ -3,22 +3,85 @@ import joblib
 import numpy as np
 import pandas as pd
 from modules.visualizations import show_feature_importance
+from modules import visualizations
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, root_mean_squared_error
+from utils import load_csv, load_image, load_analysis_image, get_data_path, get_images_path, load_model, load_pickle, get_models_path
+
 
 # Funciones auxiliares para cargar los diferentes modelos y escaladores
 @st.cache_resource
 def load_scalers():
-    x_scaler = joblib.load('models/x_scaler.pkl')
-    y_scaler = joblib.load('models/y_scaler.pkl')
-    return x_scaler, y_scaler
+    try:
+        # Usar load_model si está disponible en utils, sino usar joblib con get_models_path
+        x_scaler = load_model('x_scaler.pkl')
+        if x_scaler is None:
+            # Fallback: cargar directamente
+            x_scaler_path = get_models_path('x_scaler.pkl')
+            x_scaler = joblib.load(x_scaler_path)
+        
+        y_scaler = load_model('y_scaler.pkl')
+        if y_scaler is None:
+            y_scaler_path = get_models_path('y_scaler.pkl')
+            y_scaler = joblib.load(y_scaler_path)
+            
+        return x_scaler, y_scaler
+    except Exception as e:
+        st.error(f"❌ Error loading scalers: {e}")
+        return None, None
+
 
 @st.cache_resource
 def load_models():
-    return {
-        "lightgbm": joblib.load("models/best_lightgbm_model.pkl"),
-        "neural_network": joblib.load("models/simple_nn_model.pkl"),
-        "recommendation": joblib.load("models/NearestNeighbors.pkl"),
-    }
+    models_dict = {}
+    
+    try:
+        # Cargar LightGBM
+        lightgbm_data = load_model('best_lightgbm_model.pkl')
+        
+        if lightgbm_data is not None:
+            # Si es un diccionario, extraer el modelo de la clave 'model'
+            if isinstance(lightgbm_data, dict) and 'model' in lightgbm_data:
+                lightgbm_model = lightgbm_data['model']
+                if hasattr(lightgbm_model, 'predict'):
+                    models_dict["lightgbm"] = {"model": lightgbm_model}
+                else:
+                    st.error("❌ El objeto en 'model' no es un modelo válido")
+                    models_dict["lightgbm"] = None
+            else:
+                # Si no es diccionario, usar directamente
+                models_dict["lightgbm"] = {"model": lightgbm_data}
+        else:
+            st.warning("⚠️ LightGBM model not found")
+        
+        # Resto de modelos sin cambios
+        nn_model = load_model('simple_nn_model.pkl')
+        if nn_model is not None:
+            models_dict["neural_network"] = nn_model
+        
+        nn_recommender = load_model('NearestNeighbors.pkl')
+        if nn_recommender is not None:
+            models_dict["recommendation"] = nn_recommender
+        
+        return models_dict
+        
+    except Exception as e:
+        st.error(f"❌ Error loading models: {e}")
+        return {}
+    
+def load_knn_imputer():
+    """
+    Carga el KNN imputer usando utils
+    """
+    try:
+        imputer = load_model('knn_imputer.pkl')
+        if imputer is None:
+            # Fallback
+            imputer_path = get_models_path('knn_imputer.pkl')
+            imputer = joblib.load(imputer_path)
+        return imputer
+    except Exception as e:
+        st.error(f"❌ Error loading KNN imputer: {e}")
+        return None
 
 def show_price_prediction(df_processed):
     st.header("💸 Price Prediction Model")
@@ -27,10 +90,17 @@ def show_price_prediction(df_processed):
     # Cargar los modelos y el KNN imputer
     models = load_models()
     
+    if not models or "lightgbm" not in models:
+        st.error("❌ LightGBM model could not be loaded")
+        return
+    
     model = models["lightgbm"]["model"]
     
     # Cargar el KNN Imputer
-    knn_imputer = joblib.load("models/knn_imputer.pkl")
+    knn_imputer = load_knn_imputer()
+    if knn_imputer is None:
+        st.error("❌ KNN imputer could not be loaded")
+        return
 
     # Entradas del usuario
     st.subheader("Please enter the following details about the property:")
@@ -87,9 +157,12 @@ def show_price_prediction(df_processed):
     st.write(f"**The predicted price for this property is: €{predicted_price:.2f}**.")
 
     st.subheader("Model Evaluation Metrics")
-    metrics_df = pd.read_csv("data/lightgbm_metrics.csv")
+    metrics_df = load_csv('lightgbm_metrics.csv')
+    if not metrics_df.empty:
+        st.dataframe(metrics_df)
+    else:
+        st.warning("⚠️ LightGBM metrics not available")
 
-    st.dataframe(metrics_df)
 
     with st.expander("Feature Importance Chart"):
     # Llamar la visualizacion en visualizations.py
@@ -144,16 +217,29 @@ def show_neural_network_price_prediction(df_processed):
     st.write(f"**The predicted price for this property is: €{predicted_price:.2f}**.")  
 
     st.subheader("Model Evaluation Metrics")
-    metrics_df = pd.read_csv("data/simple_nn_metrics.csv")
+    metrics_df = load_csv('simple_nn_metrics.csv')
     st.dataframe(metrics_df)
 
     st.subheader("Model Training and Validation Loss")
-    train_val_loss_fig = joblib.load("images/analysis/train_val_loss.pkl")
-    st.plotly_chart(train_val_loss_fig)
+    train_val_loss_fig = load_pickle('train_val_loss.pkl', subfolder='analysis')
+    if train_val_loss_fig is not None:
+        # Verificar tipo de figura
+        if hasattr(train_val_loss_fig, 'update_layout'):  # Plotly
+            st.plotly_chart(train_val_loss_fig)
+        elif hasattr(train_val_loss_fig, 'savefig'):  # Matplotlib
+            st.pyplot(train_val_loss_fig)
+    else:
+        st.warning("⚠️ Training/Validation loss plot not available")
 
     st.subheader("Real vs Predicted Prices")
-    real_vs_pred_fig = joblib.load("images/analysis/real_vs_pred.pkl")
-    st.plotly_chart(real_vs_pred_fig)
+    real_vs_pred_fig = load_pickle('real_vs_pred.pkl', subfolder='analysis')
+    if real_vs_pred_fig is not None:
+        if hasattr(real_vs_pred_fig, 'update_layout'):
+            st.plotly_chart(real_vs_pred_fig)
+        elif hasattr(real_vs_pred_fig, 'savefig'):
+            st.pyplot(real_vs_pred_fig)
+    else:
+        st.warning("⚠️ Real vs Predicted plot not available")
 
 
 def show_recommender_and_nlp(df_sentiment):
@@ -246,8 +332,14 @@ def show_model_explanation(model_choice):
         After evaluating their performance based on their metrics, we found LightGBM to deliver the best balance between accuracy and efficiency.
         """)
         st.markdown("### Comparison of Model Results")
-        resultados_modelos = pd.read_pickle("models/resultados_modelos.pkl")
-        st.dataframe(resultados_modelos)        
+        try:
+            # Intentar cargar con load_pickle (desde models/)
+            resultados_path = get_models_path('resultados_modelos.pkl')
+            resultados_modelos = joblib.load(resultados_path)
+            st.dataframe(resultados_modelos)
+        except Exception as e:
+            st.error(f"❌ Could not load model comparison results: {e}")
+            st.info("Model comparison data not available")
 
     elif model_choice == "Price Prediction - Neural Networks":
         st.write("""
@@ -286,3 +378,4 @@ def show():
         show_neural_network_price_prediction(df_processed)
     elif model_choice == "Recommender + NLP Sentiment Analysis":
         show_recommender_and_nlp(df_sentiment)
+        

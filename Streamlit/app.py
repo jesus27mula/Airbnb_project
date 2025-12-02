@@ -1,27 +1,20 @@
 import streamlit as st
 import pandas as pd
+from utils import init_session_state
 from pages_section import landing_page, data_analysis, machine_learning, database, about
 
+# Inicializar session_state con utils
+init_session_state()
 
-# Cargar el CSV en session_state
-if 'df' not in st.session_state:
-    file_path = 'data/df_final_cleaned.csv'# Dataframe procesado para visualizaciones
-    df = pd.read_csv(file_path)
-    # Almacenar el DataFrame limpio en session_state
-    st.session_state.df = df
-
-if 'df_processed' not in st.session_state:
-    df_ml = pd.read_csv('data/df_processed_to_ML.csv')  # DataFrame procesado para modelos
-    st.session_state.df_processed = df_ml
-
-if 'df_sentiment' not in st.session_state:
-    df_sentiment = pd.read_csv('data/df_rec_st.csv')  # DataFrame para análise de sentimientos
-    st.session_state.df_sentiment = df_sentiment
-
-# Acceder al DataFrame directamente desde session_state
+# Acceder a los DataFrames
 df = st.session_state.df
 df_processed = st.session_state.df_processed
 df_sentiment = st.session_state.df_sentiment
+
+
+
+# Cargar el CSV en session_state
+from utils import load_csv, load_image, load_analysis_image, get_data_path, get_images_path
 
 page = st.radio(
     "**🏠 Dear User, choose what you want to discover! 🏠**",

@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 from modules import visualizations
 from modules.sql_connection import fetch_top_10_services
-
+from modules import sql_connection
+from modules import visualizations
+from utils import load_analysis_image, load_pickle
 
 def show(df):
     st.title('**Discover the world of Airbnb accommodations through data!**')
@@ -12,7 +14,11 @@ def show(df):
     in every corner of the Airbnb market.  
     Ready to start exploring? 🏠✨
     ''')
-    st.image('images/captivating_barcelona.png', width=900)
+    img = load_analysis_image('captivating_barcelona.png')
+    if img:
+        st.image(img, width=900)
+    else:
+        st.warning("Image 'captivating_barcelona.png' not found in images/analysis/")
 
     st.header('Exploratory Data Analysis')
     st.write('''
@@ -26,11 +32,12 @@ def show(df):
     df_display = df.drop(columns=['timestamp', 'record_id', 'titles', 'location', 'host_name'])
     st.dataframe(df_display.head())
 
-    df_filtered = df.copy()
+    if 'df_filtered' not in st.session_state:
+        st.session_state.df_filtered = df.copy()
 
     # Filtros interactivos
     property_type = st.multiselect('Select property type:', options=df['property_types'].unique(), default=None)
-    rating_options = ['1-2', '3-4', '4-5']
+    rating_options = ['All', '1-2', '3-4', '4-5']
     selected_rating_range = st.selectbox('Select a rating range:', options=rating_options)
     num_reviews_slider = st.slider(
         'Select minimum number of reviews:',
@@ -46,9 +53,18 @@ def show(df):
                             value=(int(df['prices_per_night'].min()), int(df['prices_per_night'].max())), 
                             format='€%d')
 
-    apply_filters = st.button('Apply Filters')
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        apply_filters = st.button('Apply Filters')
+    with col2:
+        reset_filters = st.button('Reset Filters')
 
+    # Aplicar filtros
     if apply_filters:
+        # Iniciar con una copia del DataFrame original
+        df_filtered = df.copy()
+        
+        # Aplicar filtro de rating
         if selected_rating_range == '1-2':
             df_filtered = df_filtered[(df_filtered['ratings'] >= 1) & (df_filtered['ratings'] <= 2)]
         elif selected_rating_range == '3-4':
@@ -56,30 +72,81 @@ def show(df):
         elif selected_rating_range == '4-5':
             df_filtered = df_filtered[(df_filtered['ratings'] > 4) & (df_filtered['ratings'] <= 5)]
         
+        # Aplicar filtro de número de reviews
         if num_reviews_slider > 0:
             df_filtered = df_filtered[df_filtered['num_reviews'] >= num_reviews_slider]
         
+        # Aplicar filtro de tipo de propiedad
         if property_type:
             df_filtered = df_filtered[df_filtered['property_types'].isin(property_type)]
         
-        # Aplicar el filtro del precio
+        
+        # Aplicar filtro de precio
         df_filtered = df_filtered[(df_filtered['prices_per_night'] >= price_range[0]) & 
                                   (df_filtered['prices_per_night'] <= price_range[1])]
-
-        st.subheader('Filtered Listings')
-        df_filtered_display = df_filtered.drop(columns=['timestamp', 'record_id', 'titles', 'location', 'host_name'])
-        st.dataframe(df_filtered_display.head())
+        
+        # Guardar en sesion_state
+        st.session_state.df_filtered = df_filtered
+        
+        # Mostrar información sobre los filtros aplicados
+        st.success(f"✅ Filters applied! Showing {len(df_filtered)} of {len(df)} properties")
+        
+        # Resetear filtros
+    if reset_filters:
+        st.session_state.df_filtered = df.copy()
+        st.success("✅ Filters reset!")
+            
+    # Usar el DataFrame filtrado (ya sea de session_state o el original si no se ha filtrado)
+    df_filtered = st.session_state.df_filtered
+    
+    # Mostrar datos filtrados o sin filtrar
+    if apply_filters or 'df_filtered' in st.session_state:
+        st.subheader(f'Filtered Listings ({len(df_filtered)} properties)')
     else:
         st.subheader('Listings Without Filters')
-        df_display = df.drop(columns=['timestamp', 'record_id', 'titles', 'location', 'host_name'])
-        st.dataframe(df_display.head())
+    
+    df_filtered_display = df_filtered.drop(columns=['timestamp', 'record_id', 'titles', 'location', 'host_name'])
+    st.dataframe(df_filtered_display.head())
+    
+    # Verificar si hay datos después del filtrado
+    if df_filtered.empty:
+        st.warning("⚠️ No properties match the selected filters. Please adjust your criteria.")
+        # Mostrar gráficos con datos originales para evitar errores
+        df_filtered_for_viz = df.copy()
+    else:
+        df_filtered_for_viz = df_filtered
 
     # Visualizaciones iniciales de precio y outliers
     col1, col2 = st.columns(2)
     with col1:
-        visualizations.load_and_display_pickle('images/analysis/price_boxplot.pkl')
+        price_boxplot_fig = load_pickle('price_boxplot.pkl', subfolder='analysis')
+        if price_boxplot_fig:
+            try:
+                # Verificar tipo de figura
+                if hasattr(price_boxplot_fig, 'update_layout'):  # Plotly figure
+                    st.plotly_chart(price_boxplot_fig, width=None)
+                elif hasattr(price_boxplot_fig, 'savefig'):  # Matplotlib figure
+                    st.pyplot(price_boxplot_fig)
+                else:
+                    st.write(price_boxplot_fig)
+            except Exception as e:
+                st.error(f"Error displaying price_boxplot: {e}")
+        else:
+            st.warning("Price boxplot visualization not available")
     with col2:
-        visualizations.load_and_display_pickle('images/analysis/price_zscore.pkl')
+        price_zscore_fig = load_pickle('price_zscore.pkl', subfolder='analysis')
+        if price_zscore_fig:
+            try:
+                if hasattr(price_zscore_fig, 'update_layout'):  # Plotly figure
+                    st.plotly_chart(price_zscore_fig, width=None)
+                elif hasattr(price_zscore_fig, 'savefig'):  # Matplotlib figure
+                    st.pyplot(price_zscore_fig)
+                else:
+                    st.write(price_zscore_fig)
+            except Exception as e:
+                st.error(f"Error displaying price_zscore: {e}")
+        else:
+            st.warning("Price Z-score visualization not available")
 
     with st.expander("Click to see insights from the Z-score analysis"):
         st.write(""" 
@@ -96,9 +163,9 @@ def show(df):
     col1, col2 = st.columns(2)
 
     with col1:
-        visualizations.price_rating_distribution(df_filtered)
+        visualizations.price_rating_distribution(df_filtered_for_viz)
     with col2:
-        visualizations.average_price_by_capacity(df_filtered)
+        visualizations.average_price_by_capacity(df_filtered_for_viz)
 
 # Anadir hipotesis aqui
     with st.expander("Click to see insights from the graphs above"):
@@ -116,7 +183,7 @@ def show(df):
         """)
 
     with st.expander("Correlation Map"):
-        visualizations.correlation(df_filtered)
+        visualizations.correlation(df_filtered_for_viz)
         st.write("""
     - **Correlation Insights**: This map highlights relationships between variables, with darker colors 
         indicating stronger correlations. Pay special attention to the correlation between price and guest capacity,
@@ -127,9 +194,9 @@ def show(df):
 
     col1, col2 = st.columns(2)
     with col1:
-        visualizations.price_property_types(df_filtered)
+        visualizations.price_property_types(df_filtered_for_viz)
     with col2:    
-        visualizations.price_distribution_histogram(df_filtered)
+        visualizations.price_distribution_histogram(df_filtered_for_viz)
 
     with st.expander("Click to see insights from the price analysis"):
         st.write("""
@@ -145,11 +212,11 @@ def show(df):
 # Visualizaciones relacionadas a Reviews/Ratings
     col1, col2 = st.columns(2)
     with col1:
-        visualizations.rating_distribution(df_filtered)
+        visualizations.rating_distribution(df_filtered_for_viz)
     with col2:
-        visualizations.reviews_rating_distribution(df_filtered)
+        visualizations.reviews_rating_distribution(df_filtered_for_viz)
 
-    visualizations.reviews_price_scatter(df_filtered)
+    visualizations.reviews_price_scatter(df_filtered_for_viz)
 
     with st.expander("Click to see insights from the reviews and ratings visualizations"):
         st.write("""
