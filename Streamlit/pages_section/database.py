@@ -1,9 +1,18 @@
 import streamlit as st
+from utils import get_images_path
+import os
 
 def show():
     st.title("🛠️ Database Architecture")
+    
+    image_path = get_images_path("sqlschema.png")
+    
+    if os.path.exists(image_path):
+        st.image(image_path, caption="Database Architecture Diagram", width=600)
+    else:
+        st.error(f"❌ Imagen no encontrada en: {image_path}")
+        st.info("🔍 Buscando imagen...")
 
-    st.image("images/sqlschema.png", caption="Database Architecture Diagram", width=600)
 
     st.header("Tables and Columns Overview")
 
