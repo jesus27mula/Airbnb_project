@@ -1,29 +1,18 @@
-venv/
+# .gitignore - VERSIÓN CORREGIDA
+
+# ========== ENTORNOS VIRTUALES ==========
 __pycache__/
 *.pyc
-.env
-*.env
-.env.local
-"*.backup"
 
-# Entornos virtuales de Python
-venv/
-.venv/
-env/
-ENV/
-
-# Variables de entorno
+# ========== ARCHIVOS DE ENTRONO ==========
+# Ignorar archivos sensibles
 .env
 .env.local
-.env.*
-!env.template
-secrets.toml
-*.env
+.env.development
+.env.production
 .envrc
 
-# Config files with passwords
-config.json
-credentials.json
-
-# Streamlit secrets
-.streamlit/secrets.toml
+# PERO mantener los templates/ejemplos
+!*.env.example
+!env.example
+!env.template
